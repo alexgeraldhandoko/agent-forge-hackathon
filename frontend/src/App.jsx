@@ -494,7 +494,7 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
 
         <section className="code-preview">
           <div className="section-heading">
-            <span>Explorer</span>
+            <span>Workspace tree</span>
             <strong>{fileNames.length}</strong>
           </div>
           <FileExplorer
@@ -502,15 +502,6 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
             selectedFile={activeFile}
             onSelectFile={setSelectedFile}
           />
-          {activeFile && (
-            <div className="code-viewer">
-              <div className="code-tab">
-                <span className="file-kind">{fileKind(activeFile)}</span>
-                <span>{activeFile}</span>
-              </div>
-              <pre>{files[activeFile]}</pre>
-            </div>
-          )}
         </section>
       </motion.aside>
     </motion.main>

@@ -947,6 +947,11 @@ blockquote {
   flex-direction: column;
 }
 
+.code-preview .file-explorer {
+  flex: 1;
+  max-height: none;
+}
+
 .file-explorer {
   display: grid;
   align-content: start;
@@ -1043,51 +1048,6 @@ blockquote {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.code-viewer {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
-  margin-top: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  background: rgba(10, 11, 15, 0.72);
-}
-
-.code-tab {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  color: #dfe2ef;
-  font-size: 12px;
-}
-
-.code-tab span:last-child {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.code-viewer pre {
-  flex: 1;
-  min-height: 190px;
-  max-height: none;
-  overflow: auto;
-  margin: 0;
-  padding: 11px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: #dfe2ef;
-  font-size: 12px;
-  line-height: 1.55;
 }
 
 .empty-code {
