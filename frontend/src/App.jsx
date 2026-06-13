@@ -180,7 +180,7 @@ function WorkspaceLobby({ currentName, user, onCreate, onJoin, onSignOut }) {
 
 function Workspace({ currentName, user, workspaceId, onSignOut }) {
   const [status, setStatus] = useState("connecting");
-  const [activePanel, setActivePanel] = useState("chat");
+  const [activePanel, setActivePanel] = useState("");
   const [showContext, setShowContext] = useState(true);
   const [members, setMembers] = useState([]);
   const [files, setFiles] = useState({});
@@ -311,7 +311,6 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
 
         <nav className="panel-nav" aria-label="Workspace sections">
           {[
-            ["chat", "Chat", "Prompt the shared agent"],
             ["files", "Files", "Generated workspace files"],
             ["team", "People", "Participants and join code"],
           ].map(([key, label, title]) => (

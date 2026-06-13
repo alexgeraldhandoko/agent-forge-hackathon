@@ -396,7 +396,7 @@ label {
 }
 
 .panel-nav {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   padding: 3px;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 999px;
