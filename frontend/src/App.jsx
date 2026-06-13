@@ -83,6 +83,7 @@ function App() {
       currentName={currentName}
       user={user}
       workspaceId={workspaceId}
+      onSignOut={signOut}
     />
   );
 }
@@ -149,7 +150,7 @@ function WorkspaceLobby({ currentName, user, onCreate, onJoin, onSignOut }) {
           </motion.button>
 
           <form onSubmit={submitJoin}>
-            <label htmlFor="joinCode">Join workspace</label>
+            <label htmlFor="joinCode">Join with teammate code</label>
             <div className="join-row">
               <input
                 id="joinCode"
@@ -169,7 +170,7 @@ function WorkspaceLobby({ currentName, user, onCreate, onJoin, onSignOut }) {
         </div>
 
         <footer className="lobby-footer">
-          <span>Workspace codes are generated randomly and can be shared with teammates.</span>
+          <span>Create generates a random 6-digit code. Teammates sign in with Google and enter it here.</span>
           <motion.button type="button" onClick={onSignOut} {...pressMotion}>Switch account</motion.button>
         </footer>
       </motion.section>
@@ -177,7 +178,7 @@ function WorkspaceLobby({ currentName, user, onCreate, onJoin, onSignOut }) {
   );
 }
 
-function Workspace({ currentName, user, workspaceId }) {
+function Workspace({ currentName, user, workspaceId, onSignOut }) {
   const [status, setStatus] = useState("connecting");
   const [activePanel, setActivePanel] = useState("chat");
   const [showContext, setShowContext] = useState(true);
@@ -210,7 +211,7 @@ function Workspace({ currentName, user, workspaceId }) {
   }, [events]);
 
   const fileNames = useMemo(() => Object.keys(files).sort(), [files]);
-  const activeFile = selectedFile || fileNames[0] || "";
+  const activeFile = selectedFile && files[selectedFile] !== undefined ? selectedFile : fileNames[0] || "";
   const latestActions = actions.slice(-4).reverse();
 
   const inviteLink = useMemo(() => {
@@ -295,7 +296,7 @@ function Workspace({ currentName, user, workspaceId }) {
   }
 
   function handlePromptKeyDown(event) {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       sendPrompt(false);
     }
@@ -316,7 +317,7 @@ function Workspace({ currentName, user, workspaceId }) {
           {[
             ["chat", "Chat", "Prompt the shared agent"],
             ["files", "Files", "Generated workspace files"],
-            ["team", "Team", "Members and invites"],
+            ["team", "People", "Participants and join code"],
           ].map(([key, label, title]) => (
             <motion.button
               type="button"
@@ -333,7 +334,7 @@ function Workspace({ currentName, user, workspaceId }) {
 
         <motion.section layout className={`sidebar-section ${activePanel === "team" ? "" : "compact-section"}`}>
           <div className="section-heading">
-            <span>Team</span>
+            <span>Participants</span>
             <strong>{members.length}</strong>
           </div>
           <div className="member-list">
@@ -348,9 +349,10 @@ function Workspace({ currentName, user, workspaceId }) {
 
         <motion.section layout className={`invite-panel ${activePanel === "team" ? "" : "compact-section hidden-when-compact"}`}>
           <div className="section-heading">
-            <span>Workspace code</span>
+            <span>Random join code</span>
           </div>
-          <motion.button type="button" className="workspace-code" onClick={copyWorkspaceCode} title="Copy workspace code" {...pressMotion}>
+          <p className="join-code-help">Share this 6-digit code. Teammates sign in with Google, choose join, and enter it.</p>
+          <motion.button type="button" className="workspace-code" onClick={copyWorkspaceCode} title="Copy workspace code" aria-label={`Copy workspace code ${workspaceId}`} {...pressMotion}>
             {workspaceId}
           </motion.button>
           <div className="share-actions">
@@ -361,7 +363,7 @@ function Workspace({ currentName, user, workspaceId }) {
               Copy link
             </motion.button>
           </div>
-          {inviteStatus && <p>{inviteStatus}</p>}
+          {inviteStatus && <p className="copy-status">{inviteStatus}</p>}
         </motion.section>
 
         <motion.section layout className={`sidebar-section ${activePanel === "files" ? "" : "compact-section"}`}>
@@ -369,20 +371,12 @@ function Workspace({ currentName, user, workspaceId }) {
             <span>Files</span>
             <strong>{fileNames.length}</strong>
           </div>
-          <div className="sidebar-files">
-            {fileNames.length === 0 && <p className="soft-text">No files yet.</p>}
-            {fileNames.map((fileName) => (
-              <motion.button
-                type="button"
-                className={fileName === activeFile ? "active" : ""}
-                key={fileName}
-                onClick={() => setSelectedFile(fileName)}
-                {...pressMotion}
-              >
-                {fileName}
-              </motion.button>
-            ))}
-          </div>
+          <FileExplorer
+            files={files}
+            selectedFile={activeFile}
+            onSelectFile={setSelectedFile}
+            compact
+          />
         </motion.section>
 
         <footer className="account-card">
@@ -390,6 +384,9 @@ function Workspace({ currentName, user, workspaceId }) {
             <strong>{currentName}</strong>
             <p>{user?.email || "Workspace member"}</p>
           </div>
+          <motion.button type="button" onClick={onSignOut} {...pressMotion}>
+            Sign out
+          </motion.button>
         </footer>
       </motion.aside>
 
@@ -427,7 +424,7 @@ function Workspace({ currentName, user, workspaceId }) {
             <motion.div className="empty-chat" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
               <span className="launch-pill">Shared context · teammate aware</span>
               <h2>What should your team build?</h2>
-              <p>Ask for code, scraping, training, or integration work. The agent reads shared files, locks, and teammate activity before it acts.</p>
+              <p>Ask for code, scraping, training, or integration work. The agent reads shared files, conflicts, and teammate activity before it acts.</p>
             </motion.div>
           )}
 
@@ -464,19 +461,19 @@ function Workspace({ currentName, user, workspaceId }) {
           </div>
           <div className="stat-grid">
             <span>{fileNames.length} files</span>
-            <span>{Object.keys(lockMap).length} locks</span>
-            <span>{members.length} online</span>
+            <span>{Object.keys(lockMap).length} conflicts</span>
+            <span>{members.length} participants</span>
           </div>
         </section>
 
         <section>
           <div className="section-heading">
-            <span>Locks</span>
+            <span>Conflicts</span>
           </div>
-          <div className="locks">
+          <div className="conflicts-list">
             {Object.keys(lockMap).length === 0 && <p className="soft-text">No active conflicts.</p>}
             {Object.entries(lockMap).map(([name, owner]) => (
-              <div className="lock-pill" key={name}>
+              <div className="conflict-pill" key={name}>
                 <strong>{name}</strong>
                 <span>{owner}</span>
               </div>
@@ -501,19 +498,167 @@ function Workspace({ currentName, user, workspaceId }) {
 
         <section className="code-preview">
           <div className="section-heading">
-            <span>{activeFile || "Code"}</span>
+            <span>Explorer</span>
+            <strong>{fileNames.length}</strong>
           </div>
-          {activeFile ? (
-            <pre>{files[activeFile]}</pre>
-          ) : (
-            <div className="empty-code">
-              <p>Generated files will appear here.</p>
+          <FileExplorer
+            files={files}
+            selectedFile={activeFile}
+            onSelectFile={setSelectedFile}
+          />
+          {activeFile && (
+            <div className="code-viewer">
+              <div className="code-tab">
+                <span className="file-kind">{fileKind(activeFile)}</span>
+                <span>{activeFile}</span>
+              </div>
+              <pre>{files[activeFile]}</pre>
             </div>
           )}
         </section>
       </motion.aside>
     </motion.main>
   );
+}
+
+function FileExplorer({ files, selectedFile, onSelectFile, compact = false }) {
+  const fileNames = useMemo(() => Object.keys(files).sort(), [files]);
+  const tree = useMemo(() => buildFileTree(fileNames), [fileNames]);
+
+  if (fileNames.length === 0) {
+    return (
+      <div className={`file-explorer empty ${compact ? "compact" : ""}`}>
+        <p>No generated files yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`file-explorer ${compact ? "compact" : ""}`} role="tree" aria-label="Generated files">
+      {tree.children.map((node) => (
+        <FileTreeNode
+          key={node.path}
+          node={node}
+          level={0}
+          selectedFile={selectedFile}
+          onSelectFile={onSelectFile}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FileTreeNode({ node, level, selectedFile, onSelectFile }) {
+  const [isOpen, setIsOpen] = useState(true);
+  const isFolder = node.type === "folder";
+
+  if (isFolder) {
+    return (
+      <div className="tree-node" role="treeitem" aria-expanded={isOpen}>
+        <motion.button
+          type="button"
+          className="tree-row folder"
+          style={{ "--tree-level": level }}
+          onClick={() => setIsOpen((value) => !value)}
+          {...pressMotion}
+        >
+          <span className="tree-caret">{isOpen ? "v" : ">"}</span>
+          <span className="folder-icon">DIR</span>
+          <span className="tree-name">{node.name}</span>
+        </motion.button>
+        <AnimatePresence initial={false}>
+          {isOpen && (
+            <motion.div
+              className="tree-children"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+            >
+              {node.children.map((child) => (
+                <FileTreeNode
+                  key={child.path}
+                  node={child}
+                  level={level + 1}
+                  selectedFile={selectedFile}
+                  onSelectFile={onSelectFile}
+                />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  return (
+    <motion.button
+      type="button"
+      role="treeitem"
+      className={`tree-row file ${selectedFile === node.path ? "active" : ""}`}
+      style={{ "--tree-level": level }}
+      onClick={() => onSelectFile(node.path)}
+      title={node.path}
+      {...pressMotion}
+    >
+      <span className="tree-caret" />
+      <span className="file-kind">{fileKind(node.name)}</span>
+      <span className="tree-name">{node.name}</span>
+    </motion.button>
+  );
+}
+
+function buildFileTree(fileNames) {
+  const root = { name: "root", path: "", type: "folder", children: [] };
+
+  for (const fileName of fileNames) {
+    const parts = fileName.split("/").filter(Boolean);
+    let current = root;
+    let currentPath = "";
+
+    parts.forEach((part, index) => {
+      const isFile = index === parts.length - 1;
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      let next = current.children.find((child) => child.name === part && child.type === (isFile ? "file" : "folder"));
+
+      if (!next) {
+        next = {
+          name: part,
+          path: currentPath,
+          type: isFile ? "file" : "folder",
+          children: [],
+        };
+        current.children.push(next);
+        current.children.sort((a, b) => {
+          if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+      }
+
+      current = next;
+    });
+  }
+
+  return root;
+}
+
+function fileKind(fileName) {
+  const extension = fileName.split(".").pop()?.toLowerCase();
+  const labels = {
+    py: "PY",
+    js: "JS",
+    jsx: "JSX",
+    ts: "TS",
+    tsx: "TSX",
+    css: "CSS",
+    html: "HTML",
+    json: "JSON",
+    md: "MD",
+    txt: "TXT",
+    yml: "YML",
+    yaml: "YAML",
+  };
+  return labels[extension] || "FILE";
 }
 
 function Message({ event, onSelectFile }) {
@@ -544,6 +689,19 @@ function Message({ event, onSelectFile }) {
               <motion.button type="button" key={fileName} onClick={() => onSelectFile(fileName)} {...pressMotion}>
                 {fileName}
               </motion.button>
+            ))}
+          </div>
+        )}
+        {files.length > 0 && (
+          <div className="generated-files">
+            {files.map((fileName) => (
+              <details className="generated-file-card" key={fileName} open={files.length === 1}>
+                <summary>
+                  <span className="file-kind">{fileKind(fileName)}</span>
+                  <span>{fileName}</span>
+                </summary>
+                <pre>{event.payload.files[fileName]}</pre>
+              </details>
             ))}
           </div>
         )}

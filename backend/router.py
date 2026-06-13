@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import quote_plus, urlparse
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -40,6 +41,13 @@ def should_use_bright_data(prompt_lower: str) -> bool:
         "fetch live",
         "latest",
         "current",
+        "current prime minister",
+        "who is the current",
+        "who is the president",
+        "who is the prime minister",
+        "today",
+        "right now",
+        "news",
         "pricing",
         "from this url",
         "from this website",
@@ -491,21 +499,13 @@ def fallback_sensenova_artifact(prompt: str, username: str) -> dict[str, Any]:
 async def scrape_to_workspace(prompt: str, username: str) -> dict[str, Any]:
     urls = extract_urls(prompt)
     if not urls:
-        return {
-            "explanation": "Asked for a URL to scrape.",
-            "assistant_message": (
-                "I can scrape and store real pages for the team, but I need a URL in the prompt. "
-                "Try: scrape https://example.com and summarize pricing."
-            ),
-            "files": {},
-            "functions_modified": [],
-            "provider": "Scrape setup",
-            "skip_execution": True,
-        }
+        urls = [search_url_for_prompt(prompt)]
 
     files: dict[str, str] = {}
+    scraped_results: list[dict[str, Any]] = []
     for url in urls:
         result = await scrape_url(url)
+        scraped_results.append(result)
         filename = scrape_filename(url)
         files[filename] = (
             f"# Scrape: {url}\n\n"
@@ -518,10 +518,12 @@ async def scrape_to_workspace(prompt: str, username: str) -> dict[str, Any]:
             f"{result['content'][:20000]}\n"
         )
 
+    answer = await answer_from_scraped_content(prompt, scraped_results)
     return {
         "explanation": f"Scraped {len(urls)} URL(s) into the shared workspace.",
-        "assistant_message": (
-            f"I scraped {len(urls)} URL(s) and saved the results under `scrapes/`. "
+        "assistant_message": answer
+        or (
+            f"I scraped {len(urls)} source(s) and saved the results under `scrapes/`. "
             "Everyone in this workspace can now reference that data in follow-up prompts."
         ),
         "files": files,
@@ -529,6 +531,66 @@ async def scrape_to_workspace(prompt: str, username: str) -> dict[str, Any]:
         "provider": "Bright Data scrape",
         "skip_execution": True,
     }
+
+
+def search_url_for_prompt(prompt: str) -> str:
+    return f"https://www.google.com/search?q={quote_plus(prompt)}"
+
+
+async def answer_from_scraped_content(prompt: str, scraped_results: list[dict[str, Any]]) -> str:
+    content_blocks = []
+    for result in scraped_results:
+        content_blocks.append(
+            f"Source URL: {result.get('url')}\n"
+            f"Source type: {result.get('source')}\n"
+            f"Status: {result.get('status')}\n"
+            f"Content:\n{strip_html_for_prompt(str(result.get('content', '')))[:8000]}"
+        )
+    content = "\n\n---\n\n".join(content_blocks)
+    if not content.strip():
+        return ""
+
+    current_datetime = datetime.now(ZoneInfo("Asia/Singapore")).strftime("%A, %B %d, %Y, %I:%M %p Singapore time")
+    api_key = os.getenv("KIMI_API_KEY") or os.getenv("TOKENROUTER_API_KEY", "")
+    base_urls = ["https://api.moonshot.ai/v1", "https://api.moonshot.cn/v1"] if os.getenv("KIMI_API_KEY") else [os.getenv("TOKENROUTER_BASE_URL", "https://api.tokenrouter.com/v1")]
+    model = os.getenv("KIMI_MODEL", "moonshot-v1-128k") if os.getenv("KIMI_API_KEY") else os.getenv("TOKENROUTER_MODEL", "anthropic/claude-opus-4.8-fast")
+    if not api_key:
+        return ""
+
+    from openai import AsyncOpenAI
+
+    for base_url in base_urls:
+        try:
+            client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=12.0, max_retries=0)
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Answer the user's question using the scraped content below. "
+                            f"Current date/time: {current_datetime}. "
+                            "Be concise. If the scraped content is insufficient, say what was scraped and what is uncertain."
+                        ),
+                    },
+                    {"role": "user", "content": f"Question: {prompt}\n\nScraped content:\n{content}"},
+                ],
+                temperature=0.1,
+            )
+            answer = (response.choices[0].message.content or "").strip()
+            if answer:
+                return answer
+        except Exception:
+            continue
+    return ""
+
+
+def strip_html_for_prompt(content: str) -> str:
+    content = re.sub(r"<script[\s\S]*?</script>", " ", content, flags=re.IGNORECASE)
+    content = re.sub(r"<style[\s\S]*?</style>", " ", content, flags=re.IGNORECASE)
+    content = re.sub(r"<[^>]+>", " ", content)
+    content = re.sub(r"\s+", " ", content)
+    return content.strip()
 
 
 def replace_function_body(source: str, function_name: str, new_body: list[str]) -> str:
@@ -561,6 +623,10 @@ def extract_urls(text: str) -> list[str]:
 
 
 def scrape_filename(url: str) -> str:
-    clean = re.sub(r"^https?://", "", url)
+    parsed = urlparse(url)
+    if parsed.netloc and "google." in parsed.netloc and parsed.path == "/search":
+        clean = "search-" + re.sub(r"^q=", "", parsed.query.split("&")[0] or "query")
+    else:
+        clean = re.sub(r"^https?://", "", url)
     clean = re.sub(r"[^a-zA-Z0-9._-]+", "-", clean).strip("-")[:80] or "page"
     return f"scrapes/{clean}.md"
