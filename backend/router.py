@@ -538,6 +538,7 @@ if __name__ == "__main__":
         "assistant_message": "I created a runnable tiny classifier training script and queued it through the Nosana GPU route.",
         "files": {"training_job.py": content},
         "functions_modified": ["make_dataset", "sigmoid", "train_classifier", "evaluate", "main"],
+        "daytona_command": "run_training_job",
         "nosana_script": f"python -c {json.dumps(content)}",
         "provider": "Nosana",
     }

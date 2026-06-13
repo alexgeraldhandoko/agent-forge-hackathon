@@ -10,11 +10,15 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).with_name(".env"))
 
+TRAINING_RUN_COMMAND = "run_training_job"
+
 
 async def run_daytona(files: dict[str, str], command: str | None = None) -> dict[str, str]:
     command = command or build_execution_command(files)
     api_key = os.getenv("DAYTONA_API_KEY")
     if not api_key:
+        if command == TRAINING_RUN_COMMAND:
+            return run_local_training_job(files)
         return run_local_syntax_check(files)
 
     try:
@@ -38,7 +42,7 @@ async def run_daytona(files: dict[str, str], command: str | None = None) -> dict
                 exec_response = await client.post(
                     f"/sandbox/{sandbox_id}/exec",
                     headers=headers,
-                    json={"command": command},
+                    json={"command": "python training_job.py" if command == TRAINING_RUN_COMMAND else command},
                 )
                 exec_response.raise_for_status()
                 payload = exec_response.json()
@@ -70,7 +74,7 @@ def run_daytona_sdk_sync(files: dict[str, str], command: str) -> dict[str, str]:
     sandbox = daytona.create()
 
     try:
-        code = build_daytona_code_run_script(files)
+        code = build_daytona_code_run_script(files, command)
         response = sandbox.process.code_run(code)
         exit_code = getattr(response, "exit_code", 0)
         result = getattr(response, "result", "") or ""
@@ -110,12 +114,27 @@ def run_local_syntax_check(files: dict[str, str]) -> dict[str, str]:
         return {"stdout": f"Local syntax check passed for {checked} Python file(s).", "stderr": ""}
 
 
-def build_daytona_code_run_script(files: dict[str, str]) -> str:
+def run_local_training_job(files: dict[str, str]) -> dict[str, str]:
+    script = build_daytona_code_run_script(files, TRAINING_RUN_COMMAND)
+    namespace = {"__name__": "__main__"}
+    try:
+        import contextlib
+        import io
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            exec(script, namespace)
+        return {"stdout": buffer.getvalue(), "stderr": ""}
+    except Exception as exc:
+        return {"stdout": "", "stderr": f"Local training run failed: {exc}"}
+
+
+def build_daytona_code_run_script(files: dict[str, str], command: str | None = None) -> str:
     python_files = {path: content for path, content in files.items() if path.endswith(".py")}
     if not python_files:
         return "print('Daytona code_run: no Python files to check.')"
 
-    return (
+    script = (
         "files = "
         + repr(python_files)
         + "\n"
@@ -125,6 +144,13 @@ def build_daytona_code_run_script(files: dict[str, str]) -> str:
         "    checked += 1\n"
         "print(f'Daytona code_run syntax check passed for {checked} Python file(s).')\n"
     )
+    if command == TRAINING_RUN_COMMAND and "training_job.py" in python_files:
+        script += (
+            "print()\n"
+            "print('Training script output:')\n"
+            "exec(files['training_job.py'], {'__name__': '__main__'})\n"
+        )
+    return script
 
 
 def build_execution_command(files: dict[str, str]) -> str:

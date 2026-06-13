@@ -140,7 +140,7 @@ async def handle_prompt(
             if result.get("skip_execution"):
                 run_output = "Stored in shared workspace."
             else:
-                run_result = await run_daytona({**store.files, **files})
+                run_result = await run_daytona({**store.files, **files}, command=result.get("daytona_command"))
                 run_output = "\n".join(
                     part for part in [run_result.get("stdout", ""), run_result.get("stderr", "")] if part
                 )
