@@ -306,7 +306,9 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
     <motion.main className={`product-shell ${showContext ? "" : "context-collapsed"}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.28 }}>
       <motion.aside className="team-sidebar" initial={{ x: -18, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}>
         <header className="mini-brand">
-          <span>AI</span>
+          <span className="brand-mark">
+            <img src="/stitch-spark.svg" alt="" />
+          </span>
         </header>
 
         <nav className="panel-nav" aria-label="Workspace sections">
