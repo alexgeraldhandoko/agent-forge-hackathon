@@ -166,6 +166,8 @@ async def handle_prompt(
             result.get("explanation", "Updated workspace."),
             sorted(files.keys()),
             run_output,
+            result.get("provider", "unknown"),
+            result.get("route", {}),
         )
         await broadcast(
             workspace_id,

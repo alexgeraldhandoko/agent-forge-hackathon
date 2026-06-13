@@ -51,6 +51,8 @@ class WorkspaceStore:
         explanation: str,
         files: list[str],
         run_output: str = "",
+        provider: str = "unknown",
+        route: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         entry = {
             "user": user,
@@ -59,6 +61,8 @@ class WorkspaceStore:
             "explanation": explanation,
             "files": files,
             "run_output": run_output,
+            "provider": provider,
+            "route": route or {},
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         self.action_log.append(entry)

@@ -189,6 +189,7 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
   const [events, setEvents] = useState([]);
   const [prompt, setPrompt] = useState("");
   const [selectedFile, setSelectedFile] = useState("");
+  const [openFile, setOpenFile] = useState("");
   const [inviteStatus, setInviteStatus] = useState("");
   const [pendingConflict, setPendingConflict] = useState(null);
   const socketRef = useRef(null);
@@ -212,7 +213,10 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
 
   const fileNames = useMemo(() => Object.keys(files).sort(), [files]);
   const activeFile = selectedFile && files[selectedFile] !== undefined ? selectedFile : fileNames[0] || "";
+  const openFileContent = openFile && files[openFile] !== undefined ? files[openFile] : "";
   const latestActions = actions.slice(-4).reverse();
+  const fileMeta = useMemo(() => buildFileMeta(actions), [actions]);
+  const openFileMeta = openFile ? fileMeta[openFile] : null;
   const [selectedTreeOwner, setSelectedTreeOwner] = useState("mine");
   const filesByOwner = useMemo(() => buildFilesByOwner(actions, files), [actions, files]);
   const treeOwners = useMemo(() => {
@@ -287,6 +291,7 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
       setActions(snapshot.action_log || []);
       setMembers(snapshot.members || []);
       setSelectedFile("");
+      setOpenFile("");
       setPendingConflict(null);
       setEvents([]);
     }
@@ -326,6 +331,11 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
       event.preventDefault();
       sendPrompt(false);
     }
+  }
+
+  function openWorkspaceFile(fileName) {
+    setSelectedFile(fileName);
+    setOpenFile(fileName);
   }
 
   return (
@@ -397,7 +407,7 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
           <FileExplorer
             files={files}
             selectedFile={activeFile}
-            onSelectFile={setSelectedFile}
+            onSelectFile={openWorkspaceFile}
             compact
           />
         </motion.section>
@@ -452,7 +462,7 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
           )}
 
           {events.map((event) => (
-            <Message key={event.id} event={event} onSelectFile={setSelectedFile} />
+            <Message key={event.id} event={event} onSelectFile={openWorkspaceFile} />
           ))}
           </AnimatePresence>
         </div>
@@ -542,13 +552,39 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
           <FileExplorer
             files={visibleTreeFiles}
             selectedFile={activeFile}
-            onSelectFile={setSelectedFile}
+            onSelectFile={openWorkspaceFile}
             emptyLabel={selectedTreeOwner === "all" ? "No generated files yet." : "No files in this tree yet."}
           />
         </section>
       </motion.aside>
+      <AnimatePresence>
+        {openFile && openFileContent && (
+          <FileViewerModal
+            fileName={openFile}
+            content={openFileContent}
+            meta={openFileMeta}
+            onClose={() => setOpenFile("")}
+          />
+        )}
+      </AnimatePresence>
     </motion.main>
   );
+}
+
+function buildFileMeta(actions) {
+  const meta = {};
+  for (const action of actions) {
+    if (!Array.isArray(action.files)) continue;
+    for (const fileName of action.files) {
+      meta[fileName] = {
+        user: action.user,
+        provider: action.provider,
+        route: action.route,
+        timestamp: action.timestamp,
+      };
+    }
+  }
+  return meta;
 }
 
 function buildFilesByOwner(actions, files) {
@@ -567,6 +603,54 @@ function buildFilesByOwner(actions, files) {
 
   return Object.fromEntries(
     Object.entries(byOwner).map(([owner, fileSet]) => [owner, [...fileSet].sort()])
+  );
+}
+
+function FileViewerModal({ fileName, content, meta, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const providerText = providerLabel(meta?.provider);
+  const routeText = routeLabel(meta?.route);
+
+  async function copyFile() {
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  }
+
+  return (
+    <motion.div
+      className="file-modal-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.section
+        className="file-modal"
+        initial={{ opacity: 0, y: 18, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 10, scale: 0.98 }}
+        transition={{ duration: 0.2 }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <span className="file-kind">{fileKind(fileName)}</span>
+            <strong>{fileName}</strong>
+            <p>{[providerText && `via ${providerText}`, routeText, meta?.user && `by ${meta.user}`].filter(Boolean).join(" · ") || "Generated workspace file"}</p>
+          </div>
+          <div className="file-modal-actions">
+            <motion.button type="button" onClick={copyFile} {...pressMotion}>
+              {copied ? "Copied" : "Copy"}
+            </motion.button>
+            <motion.button type="button" onClick={onClose} {...pressMotion}>
+              Close
+            </motion.button>
+          </div>
+        </header>
+        <pre>{content}</pre>
+      </motion.section>
+    </motion.div>
   );
 }
 
@@ -710,11 +794,31 @@ function fileKind(fileName) {
   return labels[extension] || "FILE";
 }
 
+function providerLabel(provider) {
+  if (!provider || provider === "unknown") return "";
+  return provider;
+}
+
+function routeLabel(route) {
+  const routeName = typeof route === "string" ? route : route?.route;
+  if (!routeName) return "";
+  const labels = {
+    code: "code route",
+    sensenova: "SenseNova route",
+    scrape: "Bright Data route",
+    train: "GPU training route",
+  };
+  return labels[routeName] || `${routeName} route`;
+}
+
 function Message({ event, onSelectFile }) {
   const isUser = event.kind === "you";
   const isAssistant = event.kind.startsWith("assistant");
   const name = isUser ? event.payload.user : event.payload.user || (isAssistant ? "Agent" : "Workspace");
   const files = event.payload.files ? Object.keys(event.payload.files) : [];
+  const providerText = providerLabel(event.payload.provider);
+  const routeText = routeLabel(event.payload.route);
+  const metaText = [providerText && `via ${providerText}`, routeText].filter(Boolean).join(" · ");
 
   return (
     <motion.article
@@ -731,6 +835,7 @@ function Message({ event, onSelectFile }) {
           <time>{event.time}</time>
         </header>
         <p>{event.text}</p>
+        {metaText && !isUser && <div className="provider-meta">{metaText}</div>}
         {event.payload.prompt && !isUser && <blockquote>{event.payload.prompt}</blockquote>}
         {files.length > 0 && (
           <div className="file-chips">
