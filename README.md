@@ -1,5 +1,10 @@
 # Shared AI
 
+<img width="1512" height="818" alt="image" src="https://github.com/user-attachments/assets/7a1be512-9e95-432a-a83d-267d27b0b422" />
+
+<img width="1510" height="820" alt="image" src="https://github.com/user-attachments/assets/f7d047b2-b237-45bd-9bd5-6fef5bc33c29" />
+
+
 Shared AI is a hackathon MVP for a teammate-aware AI workspace. Users sign in with Google, create or join a 6-digit workspace, prompt a shared agent, and see generated files, chat updates, conflicts, scraped context, and execution output in one live room.
 
 The MVP is designed to be demoable fast:
