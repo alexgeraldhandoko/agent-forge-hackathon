@@ -9,12 +9,61 @@ The MVP implements:
 - file/symbol lock acquisition
 - conflict warnings
 - conflict override
-- model routing through a TokenRouter-style policy
+- model routing through TokenRouter or direct Kimi
+- Bright Data web research context for current-information prompts
+- model session execution for coding/general sessions
 - session completion and lock release
 - workspace state inspection
 - WebSocket update channel
 
 Runtime state is Redis-backed by default. Redis stores workspaces, active lock leases, agent sessions, and recent action events. The in-memory store still exists for tests and quick local experiments through `AI_WORKSPACE_STORE=memory`.
+
+Model calls are OpenAI-compatible. TokenRouter is the preferred gateway when configured:
+
+```bash
+export MODEL_GATEWAY=tokenrouter
+export AI_WORKSPACE_CODING_MODEL=kimi-k2.7-code
+export AI_WORKSPACE_WEB_MODEL=kimi-k2.7-code
+export AI_WORKSPACE_GENERAL_MODEL=kimi-k2.6
+export TOKENROUTER_API_KEY=<your-tokenrouter-api-key>
+export TOKENROUTER_BASE_URL=https://api.tokenrouter.com/v1
+```
+
+`AI_WORKSPACE_*_MODEL` controls the routed model name stored on each session. `TOKENROUTER_MODEL` is optional and acts as a gateway-level override. If your TokenRouter account uses a different model or channel name for every request, set:
+
+```bash
+export TOKENROUTER_MODEL=<your-tokenrouter-model-name>
+```
+
+If TokenRouter rejects the configured routed model with a model-availability error and direct Kimi credentials are configured, the backend automatically retries the same request against Kimi.
+
+For direct Kimi calls without TokenRouter:
+
+```bash
+export MODEL_GATEWAY=kimi
+export MOONSHOT_API_KEY=<your-api-key>
+export KIMI_BASE_URL=https://api.moonshot.ai/v1
+export KIMI_MODEL=kimi-k2.7-code
+```
+
+`KIMI_API_KEY` also works if you prefer that variable name.
+
+Bright Data is a separate context provider, not a TokenRouter model route. TokenRouter chooses and calls the model. Bright Data collects live web evidence before the model call when the prompt needs current or scraped information.
+
+Configure Bright Data SERP API for web research:
+
+```bash
+export BRIGHTDATA_API_KEY=<your-bright-data-api-key>
+export BRIGHTDATA_SERP_ZONE=<your-serp-api-zone>
+```
+
+Optionally configure Unlocker API to fetch excerpts from search result pages:
+
+```bash
+export BRIGHTDATA_UNLOCKER_ZONE=<your-unlocker-zone>
+```
+
+The app automatically runs Bright Data when `task_type` is `web` or when the prompt includes current-info terms such as `latest`, `current`, `news`, `pricing`, `docs`, `scrape`, `search`, or `research`. You can override that per run with `use_web_research`.
 
 ## Run locally
 
@@ -79,3 +128,21 @@ curl -X POST http://127.0.0.1:8000/workspaces/<workspace_id>/prompts \
 ```
 
 If another member targets the same file or symbol, the backend returns `409 Conflict` unless `override_conflicts` is set to `true`.
+
+Run the accepted session through the configured model gateway:
+
+```bash
+curl -X POST http://127.0.0.1:8000/workspaces/<workspace_id>/sessions/<session_id>/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instructions": "Return a concise patch plan.",
+    "max_tokens": 1200,
+    "temperature": 1,
+    "use_web_research": null,
+    "web_query": null,
+    "max_web_results": 5,
+    "fetch_web_pages": true
+  }'
+```
+
+The `/run` endpoint optionally runs Bright Data first, then sends the member prompt, selected model, active lock map, current session, recent workspace events, and web research evidence to the configured model gateway. The model output is stored as the session result, and the session's locks are released.

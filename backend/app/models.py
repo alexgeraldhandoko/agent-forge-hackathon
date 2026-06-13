@@ -110,9 +110,30 @@ class CompleteSessionRequest(BaseModel):
     patch: str | None = None
 
 
+class RunSessionRequest(BaseModel):
+    instructions: str | None = Field(
+        default=None,
+        examples=["Return a concise implementation plan and a patch-style summary."],
+    )
+    max_tokens: int = Field(default=1200, ge=1, le=8192)
+    temperature: float = Field(default=1.0, ge=0, le=2)
+    use_web_research: bool | None = Field(
+        default=None,
+        description="Override automatic web/current-information detection.",
+    )
+    web_query: str | None = Field(
+        default=None,
+        description="Optional search query override for Bright Data research.",
+    )
+    max_web_results: int = Field(default=5, ge=1, le=10)
+    fetch_web_pages: bool = Field(
+        default=True,
+        description="Fetch top result pages when BRIGHTDATA_UNLOCKER_ZONE is configured.",
+    )
+
+
 class WorkspaceState(BaseModel):
     workspace: WorkspaceResponse
     locks: list[LockRecord]
     sessions: list[AgentSession]
     events: list[ActionEvent]
-

@@ -67,6 +67,9 @@ class WorkspaceStore(Protocol):
     async def get_state(self, workspace_id: str) -> WorkspaceState | None:
         ...
 
+    async def get_session(self, workspace_id: str, session_id: str) -> AgentSession | None:
+        ...
+
     async def submit_prompt(self, workspace_id: str, request: PromptRequest) -> PromptResponse | None:
         ...
 
@@ -132,6 +135,12 @@ class InMemoryWorkspaceStore:
                 sessions=list(self._sessions[workspace_id].values()),
                 events=self._events[workspace_id][-100:],
             )
+
+    async def get_session(self, workspace_id: str, session_id: str) -> AgentSession | None:
+        async with self._lock:
+            if workspace_id not in self._workspaces:
+                return None
+            return self._sessions[workspace_id].get(session_id)
 
     async def submit_prompt(self, workspace_id: str, request: PromptRequest) -> PromptResponse | None:
         async with self._lock:
@@ -368,6 +377,15 @@ class RedisWorkspaceStore:
             sessions=await self._list_sessions(workspace_id),
             events=await self._list_events(workspace_id),
         )
+
+    async def get_session(self, workspace_id: str, session_id: str) -> AgentSession | None:
+        if await self.get_workspace(workspace_id) is None:
+            return None
+
+        raw_session = await self._redis.hget(self._sessions_key(workspace_id), session_id)
+        if raw_session is None:
+            return None
+        return load_model(AgentSession, raw_session)
 
     async def submit_prompt(self, workspace_id: str, request: PromptRequest) -> PromptResponse | None:
         if await self.get_workspace(workspace_id) is None:
@@ -634,4 +652,3 @@ class RedisWorkspaceStore:
 
     def _mutex_key(self, workspace_id: str) -> str:
         return self._key("workspace", workspace_id, "mutex")
-
