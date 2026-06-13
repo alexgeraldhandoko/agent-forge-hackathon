@@ -213,6 +213,32 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
   const fileNames = useMemo(() => Object.keys(files).sort(), [files]);
   const activeFile = selectedFile && files[selectedFile] !== undefined ? selectedFile : fileNames[0] || "";
   const latestActions = actions.slice(-4).reverse();
+  const [selectedTreeOwner, setSelectedTreeOwner] = useState("mine");
+  const filesByOwner = useMemo(() => buildFilesByOwner(actions, files), [actions, files]);
+  const treeOwners = useMemo(() => {
+    const owners = new Set([...members, ...Object.keys(filesByOwner)]);
+    owners.delete(currentName);
+    return [...owners].sort();
+  }, [currentName, filesByOwner, members]);
+  const treeOptions = useMemo(() => {
+    const mineCount = filesByOwner[currentName]?.length || 0;
+    return [
+      { id: "mine", label: "Mine", count: mineCount },
+      { id: "all", label: "All", count: fileNames.length },
+      ...treeOwners.map((owner) => ({
+        id: owner,
+        label: owner,
+        count: filesByOwner[owner]?.length || 0,
+      })),
+    ];
+  }, [currentName, fileNames.length, filesByOwner, treeOwners]);
+  const visibleTreeFiles = useMemo(() => {
+    if (selectedTreeOwner === "all") return files;
+    const owner = selectedTreeOwner === "mine" ? currentName : selectedTreeOwner;
+    const ownerFiles = filesByOwner[owner] || [];
+    return Object.fromEntries(ownerFiles.filter((fileName) => files[fileName] !== undefined).map((fileName) => [fileName, files[fileName]]));
+  }, [currentName, files, filesByOwner, selectedTreeOwner]);
+  const visibleTreeCount = Object.keys(visibleTreeFiles).length;
 
   const inviteLink = useMemo(() => {
     const url = new URL(window.location.href);
@@ -495,13 +521,29 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
 
         <section className="code-preview">
           <div className="section-heading">
-            <span>Workspace tree</span>
-            <strong>{fileNames.length}</strong>
+            <span>File trees</span>
+            <strong>{visibleTreeCount}</strong>
+          </div>
+          <div className="tree-switcher" aria-label="Switch file tree">
+            {treeOptions.map((option) => (
+              <motion.button
+                type="button"
+                className={selectedTreeOwner === option.id ? "active" : ""}
+                key={option.id}
+                title={option.label}
+                onClick={() => setSelectedTreeOwner(option.id)}
+                {...pressMotion}
+              >
+                <span>{option.label}</span>
+                <strong>{option.count}</strong>
+              </motion.button>
+            ))}
           </div>
           <FileExplorer
-            files={files}
+            files={visibleTreeFiles}
             selectedFile={activeFile}
             onSelectFile={setSelectedFile}
+            emptyLabel={selectedTreeOwner === "all" ? "No generated files yet." : "No files in this tree yet."}
           />
         </section>
       </motion.aside>
@@ -509,14 +551,33 @@ function Workspace({ currentName, user, workspaceId, onSignOut }) {
   );
 }
 
-function FileExplorer({ files, selectedFile, onSelectFile, compact = false }) {
+function buildFilesByOwner(actions, files) {
+  const byOwner = {};
+
+  for (const action of actions) {
+    if (!action?.user) continue;
+    if (!Array.isArray(action.files)) continue;
+    byOwner[action.user] ||= new Set();
+    for (const fileName of action.files) {
+      if (files[fileName] !== undefined) {
+        byOwner[action.user].add(fileName);
+      }
+    }
+  }
+
+  return Object.fromEntries(
+    Object.entries(byOwner).map(([owner, fileSet]) => [owner, [...fileSet].sort()])
+  );
+}
+
+function FileExplorer({ files, selectedFile, onSelectFile, compact = false, emptyLabel = "No generated files yet." }) {
   const fileNames = useMemo(() => Object.keys(files).sort(), [files]);
   const tree = useMemo(() => buildFileTree(fileNames), [fileNames]);
 
   if (fileNames.length === 0) {
     return (
       <div className={`file-explorer empty ${compact ? "compact" : ""}`}>
-        <p>No generated files yet.</p>
+        <p>{emptyLabel}</p>
       </div>
     );
   }

@@ -958,6 +958,51 @@ blockquote {
   max-height: none;
 }
 
+.tree-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.tree-switcher button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 30px;
+  max-width: 100%;
+  padding: 0 9px;
+  border-color: rgba(255, 255, 255, 0.09);
+  background: rgba(10, 11, 15, 0.5);
+  color: #aeb4c6;
+  font-size: 12px;
+}
+
+.tree-switcher button.active {
+  border-color: rgba(122, 108, 255, 0.55);
+  background: rgba(122, 108, 255, 0.18);
+  color: #ffffff;
+}
+
+.tree-switcher span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-switcher strong {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  font-size: 11px;
+}
+
 .file-explorer {
   display: grid;
   align-content: start;
