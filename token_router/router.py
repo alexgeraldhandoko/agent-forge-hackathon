@@ -41,8 +41,8 @@ class TokenRouter:
     def __init__(self, store: ContextStore):
         self._store = store
         self._client = AsyncOpenAI(
-            api_key=os.environ["TOKENROUTER_API_KEY"],
-            base_url=os.environ.get("TOKENROUTER_API_BASE", "https://tokenrouter.io/v1"),
+            api_key=os.environ["KIMI_API_KEY"],
+            base_url=os.environ.get("KIMI_API_BASE", "https://api.moonshot.cn/v1"),
         )
         self._sensenova = SenseNova()
         self._nosana = Nosana()

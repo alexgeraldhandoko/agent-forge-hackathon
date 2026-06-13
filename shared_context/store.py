@@ -13,8 +13,8 @@ from supabase import create_client, Client
 
 class ContextStore:
     def __init__(self):
-        url = os.environ["SUPABASE_URL"]
-        key = os.environ["SUPABASE_SERVICE_KEY"]
+        url = os.environ["SUPABASE_URL"].strip().split("/rest/")[0].rstrip("/")
+        key = os.environ["SUPABASE_SERVICE_KEY"].strip()
         self._db: Client = create_client(url, key)
 
     # ── Files ──────────────────────────────────────────────────────────────
