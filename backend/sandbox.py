@@ -169,13 +169,15 @@ async def submit_nosana_job(script: str) -> dict[str, Any]:
                     start_response = await client.post(f"/deployments/{deployment_id}/start", headers=headers, json={})
                     start_response.raise_for_status()
                     start_payload = start_response.json()
+                start_status = start_payload.get("status", "not started") if start_payload else "created"
+                market_name = market.get("name", "selected GPU market")
                 return {
                     "status": "started" if start_payload else "created",
-                    "stdout": (
-                        "Nosana API authenticated, GPU deployment created, and start requested. "
-                        f"Deployment id: {deployment_id or 'unknown'}. "
-                        f"Create response: {payload}. "
-                        f"Start response: {start_payload or 'not started'}"
+                    "stdout": format_nosana_started_output(
+                        deployment_id=deployment_id or "unknown",
+                        market_name=market_name,
+                        market_address=market_address,
+                        start_status=start_status,
                     ),
                     "stderr": "",
                     "deployment": payload,
@@ -188,11 +190,10 @@ async def submit_nosana_job(script: str) -> dict[str, Any]:
             job_count = len(jobs_payload.get("jobs", [])) if isinstance(jobs_payload, dict) else 0
             return {
                 "status": "ready",
-                "stdout": (
-                    "Nosana API authenticated. "
-                    f"Selected market: {market.get('name', 'unknown')} ({market_address}). "
-                    f"Account can read {job_count} recent job(s). "
-                    "Set NOSANA_CREATE_DEPLOYMENT=true to create a draft deployment."
+                "stdout": format_nosana_ready_output(
+                    market_name=market.get("name", "selected GPU market"),
+                    market_address=market_address,
+                    job_count=job_count,
                 ),
                 "stderr": "",
                 "market": market,
@@ -203,6 +204,46 @@ async def submit_nosana_job(script: str) -> dict[str, Any]:
             "stdout": "",
             "stderr": f"Nosana API call failed, simulated GPU training job completed for MVP continuity. Error: {exc}",
         }
+
+
+def format_nosana_started_output(
+    deployment_id: str,
+    market_name: str,
+    market_address: str,
+    start_status: str,
+) -> str:
+    return "\n".join(
+        [
+            "GPU training job submitted successfully.",
+            "",
+            f"Provider: Nosana",
+            f"Deployment ID: {deployment_id}",
+            f"Market: {market_name} ({market_address})",
+            f"Status: {start_status}",
+            "",
+            "What happened:",
+            "- Shared AI detected this as a training/GPU request.",
+            "- Daytona checked the generated Python code first.",
+            "- Nosana created the GPU deployment and accepted the start request.",
+            "",
+            "Next step: open the Nosana dashboard and search this deployment ID to watch it move from STARTING to RUNNING/COMPLETED.",
+        ]
+    )
+
+
+def format_nosana_ready_output(market_name: str, market_address: str, job_count: int) -> str:
+    return "\n".join(
+        [
+            "Nosana GPU route is ready.",
+            "",
+            "Provider: Nosana",
+            f"Selected market: {market_name} ({market_address})",
+            f"Recent jobs visible: {job_count}",
+            "",
+            "Safe mode is on, so no GPU deployment was launched.",
+            "Set NOSANA_CREATE_DEPLOYMENT=true only when you want to start a real deployment.",
+        ]
+    )
 
 
 def choose_nosana_market(markets: Any) -> dict[str, Any]:
